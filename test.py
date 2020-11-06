@@ -55,16 +55,18 @@ def get_playlist_audio_features(username, playlist_id, sp):
         audio_features += sp.audio_features(ids[index:index + 50])
         index += 50
 
-    features_list = []
-    for features in audio_features:
-        features_list.append([features['energy'], features['liveness'],
-                                features['tempo'], features['speechiness'],
-                                features['acousticness'], features['instrumentalness'],
-                                features['time_signature'], features['danceability'],
-                                features['key'], features['duration_ms'],
-                                features['loudness'], features['valence'],
-                                features['mode'], features['type'],
-                                features['uri']])
+        features_list = []
+        fidx = 0
+        for features in audio_features:
+            features_list.append([features['energy'], features['liveness'],
+                                    features['tempo'], features['speechiness'],
+                                    features['acousticness'], features['instrumentalness'],
+                                    features['time_signature'], features['danceability'],
+                                    features['key'], features['duration_ms'],
+                                    features['loudness'], features['valence'],
+                                    features['mode'], features['type'],
+                                    features['uri'], songs[fidx]['track']['name']])
+            fidx += 1
     # Spit out feature list to json for local testing
     with open('{}-{}'.format(username, f'{playlist_id}_features'), 'w') as outfile:
         json.dump(features_list, outfile)
@@ -74,20 +76,22 @@ def get_playlist_audio_features(username, playlist_id, sp):
                                                 'acousticness', 'instrumentalness',
                                                 'time_signature', 'danceability',
                                                 'key', 'duration_ms', 'loudness',
-                                                'valence', 'mode', 'type', 'uri'])
+                                                'valence', 'mode', 'type', 'uri', 'name'])
 
     df.to_csv('{}-{}.csv'.format(username, playlist_id), index=False)
 
     # Display plot
-    f, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, ffigsize=(10,10))
-    ax1.scatter(x='tempo', y='valence', data=df)
-    ax1.set_title('Tempo vs Valence')
-    ax2.scatter(x='tempo', y='energy', data=df)
-    ax2.set_title('Tempo vs Energy')
-    ax3.scatter(x='tempo', y='danceability', data=df)
-    ax3.set_title('Tempo vs Danceability')
-    ax4.scatter(x='tempo', y='acousticness', data=df)
-    ax4.set_title('Tempo vs Acousticness')
+    f, (ax1) = plt.subplots(1, 1, figsize=(3,3))
+    ax1.scatter(x='valence', y='name', data=df)
+    #f, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(20,20))
+    #ax1.scatter(x='uri', y='valence', data=df)
+    #ax1.set_title('Valence')
+    #ax2.scatter(x='uri', y='energy', data=df)
+    #ax2.set_title('Energy')
+    #ax3.scatter(x='tempo', y='danceability', data=df)
+    #ax3.set_title('Tempo vs Danceability')
+    #ax4.scatter(x='tempo', y='acousticness', data=df)
+    #ax4.set_title('Tempo vs Acousticness')
     plt.show()
 
 def get_user_playlist(username, sp):
