@@ -1,40 +1,122 @@
-
-# get all non-local tracks of a playlist
-from spotipy.oauth2 import SpotifyClientCredentials
+import argparse
+import pprint
+import sys
+import os
+import subprocess
 import json
 import spotipy
-import time
-import sys
+import spotipy.util as util
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-# playlist id of global top 50
-PlaylistExample = '4As5Hiz998psWmWTRJmGpe'
+from spotipy.oauth2 import SpotifyClientCredentials
 
-# create spotipy client
+
 client_credentials_manager = SpotifyClientCredentials()
-sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-sp.trace = False
 
-# load the first 100 songs
-tracks = []
-result = sp.playlist_items(PlaylistExample, additional_types=['track'])
-tracks.extend(result['items'])
 
-# if playlist is larger than 100 songs, continue loading it until end
-while result['next']:
-    result = sp.next(result)
-    tracks.extend(result['items'])
+def get_playlist_content(username, playlist_id, sp):
+    offset = 0
+    songs = []
+    while True:
+        content = sp.user_playlist_tracks(username, playlist_id, fields=None,
+                                          limit=100, offset=offset, market=None)
+        songs += content['items']
+        if content['next'] is not None:
+            offset += 100
+        else:
+            break
 
-# shows acoustic features for tracks for the given artist
-tids = []
-for t in tracks:
-    print(t['track']['id'])
-    tids.append(t['track']['id'])
+    with open('{}-{}'.format(username, playlist_id), 'w') as outfile:
+        json.dump(songs, outfile)
 
-start = time.time()
-features = sp.audio_features(tids)
-delta = time.time() - start
-for feature in features:
-    print(json.dumps(feature, indent=4))
-    print()
-    analysis = sp._get(feature['analysis_url'])
-    #print(json.dumps(analysis, indent=4))
+
+def get_playlist_audio_features(username, playlist_id, sp):
+    offset = 0
+    songs = []
+    items = []
+    ids = []
+    # duplicated code here, could probably strip out?
+    while True:
+        content = sp.user_playlist_tracks('chrisredfield306', '4As5Hiz998psWmWTRJmGpe', fields=None, limit=100, offset=offset, market=None)
+        songs += content['items']
+        if content['next'] is not None:
+            offset += 100
+        else:
+            break
+
+    for i in songs:
+        ids.append(i['track']['id'])
+
+    index = 0
+    audio_features = []
+    while index < len(ids):
+        audio_features += sp.audio_features(ids[index:index + 50])
+        index += 50
+
+        features_list = []
+        fidx = 0
+        for features in audio_features:
+            features_list.append([features['energy'], features['liveness'],
+                                    features['tempo'], features['speechiness'],
+                                    features['acousticness'], features['instrumentalness'],
+                                    features['time_signature'], features['danceability'],
+                                    features['key'], features['duration_ms'],
+                                    features['loudness'], features['valence'],
+                                    features['mode'], features['type'],
+                                    features['uri'], songs[fidx]['track']['name']])
+            fidx += 1
+    # Spit out feature list to json for local testing
+    with open('{}-{}'.format(username, f'{playlist_id}_features'), 'w') as outfile:
+        json.dump(features_list, outfile)
+
+    df = pd.DataFrame(features_list, columns=['energy', 'liveness',
+                                                'tempo', 'speechiness',
+                                                'acousticness', 'instrumentalness',
+                                                'time_signature', 'danceability',
+                                                'key', 'duration_ms', 'loudness',
+                                                'valence', 'mode', 'type', 'uri', 'name'])
+
+    df.to_csv('{}-{}.csv'.format(username, playlist_id), index=False)
+
+    # Display plot
+    f, (ax1) = plt.subplots(1, 1, figsize=(3,3))
+    ax1.scatter(x='valence', y='name', data=df)
+    #f, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(20,20))
+    #ax1.scatter(x='uri', y='valence', data=df)
+    #ax1.set_title('Valence')
+    #ax2.scatter(x='uri', y='energy', data=df)
+    #ax2.set_title('Energy')
+    #ax3.scatter(x='tempo', y='danceability', data=df)
+    #ax3.set_title('Tempo vs Danceability')
+    #ax4.scatter(x='tempo', y='acousticness', data=df)
+    #ax4.set_title('Tempo vs Acousticness')
+    plt.show()
+
+def get_user_playlist(username, sp):
+    playlists = sp.user_playlists(username)
+    for playlist in playlists['items']:
+        print(("Name: {}, Number of songs: {}, Playlist ID: {} ".
+              format(playlist['name'].encode('utf8'),
+                     playlist['tracks']['total'],
+                     playlist['id'])))
+
+
+def main(username, playlist):
+    sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+    print("Getting user playlist")
+    get_user_playlist(username, sp)
+    print("Getting playlist content")
+    get_playlist_content(username, playlist, sp)
+    print("Getting playlist audio features")
+    get_playlist_audio_features(username, playlist, sp)
+
+
+if __name__ == '__main__':
+    print('Starting...')
+    parser = argparse.ArgumentParser(description='description')
+    parser.add_argument('--username', help='username')
+    parser.add_argument('--playlist', help='username')
+    args = parser.parse_args()
+    main(args.username, args.playlist)
