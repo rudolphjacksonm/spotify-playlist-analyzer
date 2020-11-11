@@ -1,27 +1,39 @@
+"""
+Spotipy Playlist Graphing
+"""
 import argparse
-import pprint
-import sys
-import os
-import subprocess
 import json
-import spotipy
-import spotipy.util as util
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
+import spotipy
 
 from spotipy.oauth2 import SpotifyClientCredentials
 
-
 client_credentials_manager = SpotifyClientCredentials()
 
+def get_playlist_enabled_songs(songs):
+    """
+    Helper function for determining which songs in a playlist
+    are shown as enabled in the target market.
+    """
+    enabled_songs = []
+    for i in songs:
+        if i['track']['is_playable'] is True:
+            enabled_songs.append(i)
+            print("Enabled track {}" .format(i['track']['name']))
+        else:
+            print("Skipping track {} as it is disabled." .format(i['track']['name']))
 
-def get_playlist_content(username, playlist_id, sp):
+    return enabled_songs
+
+def get_playlist_content(username, playlist_id, spotify_creds):
+    """Helper function for getting contents of a user playlist.
+    """
     offset = 0
     songs = []
     while True:
-        content = sp.user_playlist_tracks(username, playlist_id, fields=None,
-                                          limit=100, offset=offset, market=None)
+        content = spotify_creds.user_playlist_tracks(username, playlist_id, fields=None,
+                                          limit=100, offset=offset, market='gb')
         songs += content['items']
         if content['next'] is not None:
             offset += 100
@@ -31,28 +43,21 @@ def get_playlist_content(username, playlist_id, sp):
     with open('{}-{}'.format(username, playlist_id), 'w') as outfile:
         json.dump(songs, outfile)
 
+    return get_playlist_enabled_songs(songs)
 
-def get_playlist_audio_features(username, playlist_id, sp):
-    offset = 0
-    songs = []
-    items = []
+def get_playlist_audio_features(username, playlist_id, spotify_creds):
+    """Returns audio features for all songs in a playlist
+    """
     ids = []
-    # duplicated code here, could probably strip out?
-    while True:
-        content = sp.user_playlist_tracks('chrisredfield306', '4As5Hiz998psWmWTRJmGpe', fields=None, limit=100, offset=offset, market=None)
-        songs += content['items']
-        if content['next'] is not None:
-            offset += 100
-        else:
-            break
 
+    songs = get_playlist_content(username, playlist_id, spotify_creds)
     for i in songs:
         ids.append(i['track']['id'])
 
     index = 0
     audio_features = []
     while index < len(ids):
-        audio_features += sp.audio_features(ids[index:index + 50])
+        audio_features += spotify_creds.audio_features(ids[index:index + 50])
         index += 50
 
         features_list = []
@@ -67,22 +72,23 @@ def get_playlist_audio_features(username, playlist_id, sp):
                                     features['mode'], features['type'],
                                     features['uri'], songs[fidx]['track']['name']])
             fidx += 1
-    # Spit out feature list to json for local testing
-    with open('{}-{}'.format(username, f'{playlist_id}_features'), 'w') as outfile:
-        json.dump(features_list, outfile)
 
-    df = pd.DataFrame(features_list, columns=['energy', 'liveness',
+        return features_list
+
+def get_playlist_dataframe(data):
+    """Takes raw playlist data, converts to DataFrame, and displays plots
+    """
+    data_frame = pd.DataFrame(data, columns=['energy', 'liveness',
                                                 'tempo', 'speechiness',
                                                 'acousticness', 'instrumentalness',
                                                 'time_signature', 'danceability',
                                                 'key', 'duration_ms', 'loudness',
                                                 'valence', 'mode', 'type', 'uri', 'name'])
 
-    df.to_csv('{}-{}.csv'.format(username, playlist_id), index=False)
-
-    # Display plot
-    f, (ax1) = plt.subplots(1, 1, figsize=(3,3))
-    ax1.scatter(x='valence', y='name', data=df)
+    data_frame.to_csv('{}.csv'.format("playlist_id"), index=False)
+    # Display plots as subplots
+    #f, (ax1) = plt.subplots(1, 1, figsize=(3,3))
+    #ax1.scatter(x='valence', y='name', data=df)
     #f, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(20,20))
     #ax1.scatter(x='uri', y='valence', data=df)
     #ax1.set_title('Valence')
@@ -92,25 +98,48 @@ def get_playlist_audio_features(username, playlist_id, sp):
     #ax3.set_title('Tempo vs Danceability')
     #ax4.scatter(x='tempo', y='acousticness', data=df)
     #ax4.set_title('Tempo vs Acousticness')
+
+    v = plt.figure(1)
+    plt.scatter(x='valence', y='name', data=data_frame)
+    plt.title('Playlist Valence')
+    plt.xlabel('Valence', fontsize=10)
+    plt.ylabel('Track Name', fontsize=10)
+    plt.tick_params(axis='both',labelsize=6)
     plt.show()
-
-def get_user_playlist(username, sp):
-    playlists = sp.user_playlists(username)
-    for playlist in playlists['items']:
-        print(("Name: {}, Number of songs: {}, Playlist ID: {} ".
-              format(playlist['name'].encode('utf8'),
-                     playlist['tracks']['total'],
-                     playlist['id'])))
-
+    e = plt.figure(2)
+    plt.scatter(x='energy', y='name', data=data_frame)
+    plt.title('Playlist Energy')
+    plt.xlabel('Energy', fontsize=10)
+    plt.ylabel('Track Name', fontsize=10)
+    plt.tick_params(axis='both',labelsize=6)
+    plt.show()
+    d = plt.figure(3)
+    plt.scatter(x='danceability', y='name', data=data_frame)
+    plt.title('Playlist Danceability')
+    plt.xlabel('Danceability', fontsize=10)
+    plt.ylabel('Track Name', fontsize=10)
+    plt.tick_params(axis='both',labelsize=6)
+    plt.show()
+    t = plt.figure(4)
+    plt.scatter(x='tempo', y='name', data=data_frame)
+    plt.title('Playlist Tempo')
+    plt.xlabel('Tempo', fontsize=10)
+    plt.ylabel('Track Name', fontsize=10)
+    plt.tick_params(axis='both',labelsize=6)
+    plt.show()
+    v.clf()
+    e.clf()
+    d.clf()
+    t.clf()
 
 def main(username, playlist):
-    sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-    print("Getting user playlist")
-    get_user_playlist(username, sp)
-    print("Getting playlist content")
-    get_playlist_content(username, playlist, sp)
+    """
+        Main function
+    """
+    spotify_creds = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
     print("Getting playlist audio features")
-    get_playlist_audio_features(username, playlist, sp)
+    data = get_playlist_audio_features(username, playlist, spotify_creds)
+    get_playlist_dataframe(data)
 
 
 if __name__ == '__main__':
