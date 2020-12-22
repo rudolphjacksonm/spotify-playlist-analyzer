@@ -40,7 +40,7 @@ def get_playlist_content(username, playlist_id, spotify_creds):
         else:
             break
 
-    with open('{}-{}'.format(username, playlist_id), 'w') as outfile:
+    with open('{}-{}.json'.format(username, playlist_id), 'w') as outfile:
         json.dump(songs, outfile)
 
     return get_playlist_enabled_songs(songs)
