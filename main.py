@@ -136,13 +136,13 @@ def get_playlist_dataframe(data):
     d.clf()
     t.clf()
 
-def main(username, playlist):
+def main(username, playlist_id):
     """
         Main function
     """
     spotify_creds = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
     print("Getting playlist audio features")
-    data = get_playlist_audio_features(username, playlist, spotify_creds)
+    data = get_playlist_audio_features(username, playlist_id, spotify_creds)
     get_playlist_dataframe(data)
 
 
@@ -150,6 +150,6 @@ if __name__ == '__main__':
     print('Starting...')
     parser = argparse.ArgumentParser(description='description')
     parser.add_argument('--username', help='username')
-    parser.add_argument('--playlist', help='username')
+    parser.add_argument('--playlist-id', help='username')
     args = parser.parse_args()
-    main(args.username, args.playlist)
+    main(args.username, args.playlist_id)
