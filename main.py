@@ -1,5 +1,5 @@
 """
-Spotipy Playlist Graphing
+Spotipy Playlist Analyzer -- Visualize the audio features of your Spotify playlist
 """
 import argparse
 import json
