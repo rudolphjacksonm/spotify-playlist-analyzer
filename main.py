@@ -4,12 +4,48 @@ Spotipy Playlist Analyzer -- Visualize the audio features of your Spotify playli
 import argparse
 import json
 import pandas as pd
+import matplotlib
+# Make sure that we are using QT5
+matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
+from PyQt5 import QtWidgets
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import spotipy
 
 from spotipy.oauth2 import SpotifyClientCredentials
 
 client_credentials_manager = SpotifyClientCredentials()
+
+font = {'family' : 'normal',
+        'weight' : 'bold',
+        'size'   : 8}
+
+matplotlib.rc('font', **font)
+
+class ScrollableWindow(QtWidgets.QMainWindow):
+    def __init__(self, fig):
+        self.qapp = QtWidgets.QApplication([])
+
+        QtWidgets.QMainWindow.__init__(self)
+        self.widget = QtWidgets.QWidget()
+        self.setCentralWidget(self.widget)
+        self.widget.setLayout(QtWidgets.QVBoxLayout())
+        self.widget.layout().setContentsMargins(0,0,0,0)
+        self.widget.layout().setSpacing(0)
+
+        self.fig = fig
+        self.canvas = FigureCanvas(self.fig)
+        self.canvas.draw()
+        self.scroll = QtWidgets.QScrollArea(self.widget)
+        self.scroll.setWidget(self.canvas)
+
+        self.nav = NavigationToolbar(self.canvas, self.widget)
+        self.widget.layout().addWidget(self.nav)
+        self.widget.layout().addWidget(self.scroll)
+
+        self.show()
+        exit(self.qapp.exec_()) 
 
 def get_playlist_enabled_songs(songs):
     """
@@ -27,7 +63,8 @@ def get_playlist_enabled_songs(songs):
     return enabled_songs
 
 def get_playlist_content(username, playlist_id, spotify_creds):
-    """Helper function for getting contents of a user playlist.
+    """
+    Helper function for getting contents of a user playlist.
     """
     offset = 0
     songs = []
@@ -40,13 +77,11 @@ def get_playlist_content(username, playlist_id, spotify_creds):
         else:
             break
 
-    with open('{}-{}.json'.format(username, playlist_id), 'w') as outfile:
-        json.dump(songs, outfile)
-
     return get_playlist_enabled_songs(songs)
 
 def get_playlist_audio_features(username, playlist_id, spotify_creds):
-    """Returns audio features for all songs in a playlist
+    """
+    Returns audio features for all songs in a playlist
     """
     ids = []
 
@@ -86,55 +121,21 @@ def get_playlist_dataframe(data):
                                                 'valence', 'mode', 'type', 'uri', 'name'])
 
     data_frame.to_csv('{}.csv'.format("playlist_id"), index=False)
+    
     # Display plots as subplots
-    #f, (ax1) = plt.subplots(1, 1, figsize=(3,3))
-    #ax1.scatter(x='valence', y='name', data=df)
-    #f, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(20,20))
-    #ax1.scatter(x='uri', y='valence', data=df)
-    #ax1.set_title('Valence')
-    #ax2.scatter(x='uri', y='energy', data=df)
-    #ax2.set_title('Energy')
-    #ax3.scatter(x='tempo', y='danceability', data=df)
-    #ax3.set_title('Tempo vs Danceability')
-    #ax4.scatter(x='tempo', y='acousticness', data=df)
-    #ax4.set_title('Tempo vs Acousticness')
-
-    v = plt.figure(1)
-    plt.scatter(x='valence', y='name', data=data_frame)
-    plt.title('Playlist Valence')
-    plt.xlabel('Valence', fontsize=10)
-    plt.xlim([0,1])
-    plt.ylabel('Track Name', fontsize=10)
-    plt.tick_params(axis='both',labelsize=6)
-    plt.show()
-    e = plt.figure(2)
-    plt.scatter(x='energy', y='name', data=data_frame)
-    plt.title('Playlist Energy')
-    plt.xlim([0,1])
-    plt.xlabel('Energy', fontsize=10)
-    plt.ylabel('Track Name', fontsize=10)
-    plt.tick_params(axis='both',labelsize=6)
-    plt.show()
-    d = plt.figure(3)
-    plt.scatter(x='danceability', y='name', data=data_frame)
-    plt.title('Playlist Danceability')
-    plt.xlim([0,1])
-    plt.xlabel('Danceability', fontsize=10)
-    plt.ylabel('Track Name', fontsize=10)
-    plt.tick_params(axis='both',labelsize=6)
-    plt.show()
-    t = plt.figure(4)
-    plt.scatter(x='tempo', y='name', data=data_frame)
-    plt.title('Playlist Tempo')
-    plt.xlim([0,250])
-    plt.xlabel('Tempo', fontsize=10)
-    plt.ylabel('Track Name', fontsize=10)
-    plt.tick_params(axis='both',labelsize=6)
-    plt.show()
-    v.clf()
-    e.clf()
-    d.clf()
-    t.clf()
+    features = [
+        'valence',
+        'energy',
+        'tempo',
+        'danceability'
+    ]
+    fig, axs = plt.subplots(len(features), figsize=(5,15))
+    for f in range(len(features)):
+        axs[f].scatter(x=features[f], y='name', data=data_frame)
+        axs[f].set_title(features[f])
+        axs[f].set_yticks([])
+    
+    a = ScrollableWindow(fig)
 
 def main(username, playlist_id):
     """
